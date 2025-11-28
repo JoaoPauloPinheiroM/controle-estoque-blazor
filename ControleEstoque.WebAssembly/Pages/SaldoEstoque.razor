@@ -1,0 +1,218 @@
+﻿@page "/saldo-estoque"
+@using ControleEstoque.WebAssembly.Interfaces
+@using ControleEstoque.WebAssembly.Model
+@inject IEstoque EstoqueService
+@inject IProdutoBase ProdutoBaseService
+@inject IProdutoEst ProdEstService
+
+<PageTitle>Saldo de Estoque</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="page-title">
+                    <span class="icon-box"></span> Saldo de Estoque
+                </h1>
+                <p class="text-muted">Visualize o saldo de produtos por estoque</p>
+            </div>
+        </div>
+    </div>
+
+    @if (carregando)
+    {
+        <div class="spinner-box">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <p>Carregando dados de saldo...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Filtro por Estoque -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Filtro de Estoque</h5>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-end">
+                    <div class="col-md-6">
+                        <label class="form-label">Selecione o Estoque:</label>
+                        <select class="form-select" @onchange="FiltrarPorEstoque">
+                            <option value="">-- Todos os Estoques --</option>
+                            @foreach (var est in estoques)
+                            {
+                                <option value="@est.Id">@est.EstoqueDescricao (@est.CodEstoque)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        @if (!string.IsNullOrEmpty(estoquesSelecionado))
+                        {
+                            <div class="alert alert-info mb-0">
+                                Estoque selecionado: <strong>@estoquesSelecionado</strong>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabela de Saldo -->
+        @if (saldosFiltrados == null || saldosFiltrados.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-nav">📭</div>
+                <h3>Nenhum saldo encontrado</h3>
+                <p>Cadastre produtos e estoques para visualizar o saldo</p>
+            </div>
+        }
+        else
+        {
+            <div class="card">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Saldo de Produtos em Estoque</h5>
+                    <span class="badge bg-light text-dark">@saldosFiltrados.Count registros</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th style="width: 10%">Código Produto</th>
+                                <th style="width: 30%">Descrição</th>
+                                <th style="width: 15%">Estoque</th>
+                                <th style="width: 15%; text-align: center;">Quantidade</th>
+                                <th style="width: 15%; text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var saldo in saldosFiltrados.OrderBy(s => s.CodProd))
+                            {
+                                var cor = saldo.Quantidade > 0 ? "table-success" : "table-warning";
+                                <tr class="@cor">
+                                    <td>
+                                        <span class="badge bg-info">@saldo.CodProd</span>
+                                    </td>
+                                    <td>
+                                        <strong>@saldo.Descricao</strong>
+                                    </td>
+                                    <td>
+                                        @saldo.EstoqueNome
+                                    </td>
+                                    <td style="text-align: center;">
+                                        <strong class="@(saldo.Quantidade > 0 ? "text-success" : "text-danger")">
+                                            @saldo.Quantidade.ToString("F2")
+                                        </strong>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        @if (saldo.Quantidade > 0)
+                                        {
+                                            <span class="badge bg-success">Em Estoque</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">Sem Estoque</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-light">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <small class="text-muted">Total de Produtos:</small>
+                            <h6>@saldosFiltrados.Count</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Quantidade Total:</small>
+                            <h6>@saldosFiltrados.Sum(s => s.Quantidade).ToString("F2")</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Com Estoque:</small>
+                            <h6>@saldosFiltrados.Count(s => s.Quantidade > 0)</h6>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Sem Estoque:</small>
+                            <h6>@saldosFiltrados.Count(s => s.Quantidade <= 0)</h6>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool carregando = true;
+    private ICollection<Estoque>? estoques;
+    private List<SaldoItem>? todosOsSaldos;
+    private List<SaldoItem>? saldosFiltrados;
+    private string estoquesSelecionado = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true;
+
+        estoques = await EstoqueService.GetEstoqueList();
+        var produtos = await ProdutoBaseService.GetProdutoBaseList();
+        var produtosEst = await ProdEstService.GetProdutoEstList();
+
+        // Construir lista de saldos
+        todosOsSaldos = new List<SaldoItem>();
+
+        foreach (var prodEst in produtosEst ?? new List<ProdutoEst>())
+        {
+            var estoque = estoques?.FirstOrDefault(e => e.Id == prodEst.EstoqueId);
+            var produto = produtos?.FirstOrDefault(p => p.Id == prodEst.ProdutoBaseId);
+
+            if (estoque != null && produto != null)
+            {
+                todosOsSaldos.Add(new SaldoItem
+                {
+                    CodProd = prodEst.CodProd ?? "",
+                    Descricao = produto.Descricao ?? "",
+                    EstoqueNome = estoque.EstoqueDescricao ?? "",
+                    EstoqueId = estoque.Id,
+                    Quantidade = prodEst.QtdeEst
+                });
+            }
+        }
+
+        saldosFiltrados = todosOsSaldos;
+        carregando = false;
+    }
+
+    private void FiltrarPorEstoque(ChangeEventArgs e)
+    {
+        var estoqueId = e.Value?.ToString();
+
+        if (string.IsNullOrEmpty(estoqueId))
+        {
+            saldosFiltrados = todosOsSaldos;
+            estoquesSelecionado = "";
+        }
+        else if (int.TryParse(estoqueId, out int id))
+        {
+            var estoque = estoques?.FirstOrDefault(e => e.Id == id);
+            estoquesSelecionado = estoque?.EstoqueDescricao ?? "";
+            saldosFiltrados = todosOsSaldos?.Where(s => s.EstoqueId == id).ToList();
+        }
+    }
+
+    private class SaldoItem
+    {
+        public string CodProd { get; set; } = "";
+        public string Descricao { get; set; } = "";
+        public string EstoqueNome { get; set; } = "";
+        public int EstoqueId { get; set; }
+        public double Quantidade { get; set; }
+    }
+}

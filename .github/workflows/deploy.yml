@@ -1,0 +1,41 @@
+name: Deploy Blazor WebAssembly to Github Pages
+
+on:
+  push:
+    branches:
+      - main 
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET Core
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install dependencies
+        run: dotnet restore
+
+      - name: Build project
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish with dotnet
+        run: dotnet publish ControleEstoque.WebAssembly/ControleEstoque.WebAssembly.csproj --configuration Release --output build --nologo
+
+      - name: Change base-tag in index.html from / to repo name
+        run: sed -i 's|<base href="/" />|<base href="/${{ github.event.repository.name }}/" />|g' build/wwwroot/index.html
+
+      - name: Commit wwwroot to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: build/wwwroot

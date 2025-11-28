@@ -1,0 +1,240 @@
+@page "/relatorios"
+@using ControleEstoque.WebAssembly.Interfaces
+@using ControleEstoque.WebAssembly.Model
+@using ControleEstoque.WebAssembly.Model.Enum
+@inject IProdutoEst ProdEstService
+@inject IEstoque EstoqueService
+@inject IProdutoBase ProdutoBaseService
+
+<PageTitle>Relatórios - Controle de Estoque</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="page-header mb-4">
+        <h1 class="page-title">
+            Relatórios
+        </h1>
+    </div>
+
+    @if (carregando)
+    {
+        <div class="spinner-box">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <p>Gerando relatórios...</p>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <!-- Relatório de Estoques -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Distribuição de Estoques</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (estoques != null && estoques.Count > 0)
+                        {
+                            <div class="list-group list-group-flush">
+                                @foreach (var estoque in estoques)
+                                {
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">@estoque.EstoqueDescricao</h6>
+                                            <small class="text-muted">@estoque.CodEstoque</small>
+                                        </div>
+                                        <span class="badge @(estoque.Status ? "bg-success" : "bg-danger")">
+                                            @(estoque.Status ? "Ativo" : "Inativo")
+                                        </span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted">Nenhum estoque disponível</p>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Relatório de Produtos -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"> Distribuição de Produtos</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (produtos != null && produtos.Count > 0)
+                        {
+                            <div class="list-group list-group-flush">
+                                @foreach (var produto in produtos.Take(10))
+                                {
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">@produto.Descricao</h6>
+                                            <small class="text-muted">@produto.CodProd</small>
+                                        </div>
+                                        <span class="badge @(produto.Status ? "bg-info" : "bg-secondary")">
+                                            @(produto.Status ? "Ativo" : "Inativo")
+                                        </span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted">Nenhum produto disponível</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Relatório Detalhado -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"> Resumo Geral</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <div class="stat-box">
+                            <small class="text-muted">Total de Estoques</small>
+                            <h4>@(estoques?.Count ?? 0)</h4>
+                            <small class="text-success">
+                                @(estoques?.Count(e => e.Status) ?? 0) ativos
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="stat-box">
+                            <small class="text-muted">Total de Produtos</small>
+                            <h4>@(produtos?.Count ?? 0)</h4>
+                            <small class="text-success">
+                                @(produtos?.Count(p => p.Status) ?? 0) ativos
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="stat-box">
+                            <small class="text-muted">Produtos em Estoque</small>
+                            <h4>@(produtosEst?.Count ?? 0)</h4>
+                            <small class="text-success">
+                                @(produtosEst?.Count(p => p.Status) ?? 0) ativos
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="stat-box">
+                            <small class="text-muted">Movimentações</small>
+                            <h4>@totalMovimentacoes</h4>
+                            <small class="text-info">Registradas</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="stat-box">
+                            <small class="text-muted">Quantidade Total</small>
+                            <h4>@quantidadeTotalEstoque.ToString("F2")</h4>
+                            <small class="text-info">Unidades</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Relatório de Movimentações Recentes -->
+        <div class="card">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0">Movimentações Recentes</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Tipo</th>
+                            <th>Quantidade</th>
+                            <th>Observação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (movimentacoes != null && movimentacoes.Count > 0)
+                        {
+                            @foreach (var mov in movimentacoes.OrderByDescending(m => m.DataMov).Take(20))
+                            {
+                                <tr class="@(mov.TipoMovp == TipoMov.Entrada ? "table-success" : "table-danger")">
+                                    <td>@mov.DataMov.ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td>
+                                        <span class="badge @(mov.TipoMovp == TipoMov.Entrada ? "bg-success" : "bg-danger")">
+                                            @(mov.TipoMovp == TipoMov.Entrada ? "Entrada" : "Saída")
+                                        </span>
+                                    </td>
+                                    <td>@mov.Qtde.ToString("F2")</td>
+                                    <td>@(string.IsNullOrEmpty(mov.Observacao) ? "-" : mov.Observacao)</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">Nenhuma movimentação registrada</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .stat-box {
+        padding: 1.5rem;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        border-left: 4px solid #007bff;
+        text-align: center;
+    }
+
+    .stat-box h4 {
+        font-size: 2rem;
+        margin: 0.5rem 0;
+        color: var(--dark-color);
+    }
+
+    .stat-box small {
+        display: block;
+    }
+</style>
+
+@code {
+    private bool carregando = true;
+    private ICollection<Estoque>? estoques;
+    private ICollection<ProdutoBase>? produtos;
+    private ICollection<ProdutoEst>? produtosEst;
+    private ICollection<EstMvp>? movimentacoes;
+    private int totalMovimentacoes = 0;
+    private double quantidadeTotalEstoque = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true;
+
+        estoques = await EstoqueService.GetEstoqueList();
+        produtos = await ProdutoBaseService.GetProdutoBaseList();
+        produtosEst = await ProdEstService.GetProdutoEstList();
+        movimentacoes = await ProdEstService.GetMovimentacoesList();
+        
+        totalMovimentacoes = movimentacoes?.Count ?? 0;
+        quantidadeTotalEstoque = produtosEst?.Sum(p => p.QtdeEst) ?? 0;
+
+        carregando = false;
+    }
+}

@@ -1,0 +1,274 @@
+﻿@page "/"
+@using ControleEstoque.WebAssembly.Interfaces
+@using ControleEstoque.WebAssembly.Model
+@inject IEstoque EstoqueService
+@inject IProdutoBase ProdutoBaseService
+@inject IProdutoEst ProdEstService
+
+<PageTitle>Home</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="page-header mb-4">
+        <h1 class="page-title">
+            <span class="icon-box">📈</span> Dashboard
+        </h1>
+        <p class="text-muted">Bem-vindo ao sistema de controle de estoque</p>
+    </div>
+
+    @if (carregando)
+    {
+        <div class="spinner-box">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <p>Carregando dados do dashboard...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Filtro por Estoque -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">🔍 Filtro por Estoque</h5>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-end">
+                    <div class="col-md-6">
+                        <label class="form-label">Selecione um Estoque:</label>
+                        <select class="form-select" @onchange="FiltrarDashboard">
+                            <option value="">-- Todos os Estoques --</option>
+                            @foreach (var est in estoques)
+                            {
+                                <option value="@est.Id">@est.EstoqueDescricao (@est.CodEstoque)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        @if (!string.IsNullOrEmpty(filtroEstoqueNome))
+                        {
+                            <div class="alert alert-info mb-0">
+                                📍 Visualizando: <strong>@filtroEstoqueNome</strong>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning mb-0">
+                                📊 Mostrando dados de <strong>TODOS os estoques</strong>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cards de Resumo -->
+        <div class="dashboard-cards">
+            <div class="dashboard-card card-primary">
+                <div class="card-icon">📦</div>
+                <div class="card-content">
+                    <h6>Total de Estoques</h6>
+                    <h3>@totalEstoques</h3>
+                </div>
+            </div>
+
+            <div class="dashboard-card card-success">
+                <div class="card-icon">🏷️</div>
+                <div class="card-content">
+                    <h6>Produtos Cadastrados</h6>
+                    <h3>@totalProdutos</h3>
+                    <small class="text-success">@totalProdutosAtivos ativos</small>
+                </div>
+            </div>
+
+            <div class="dashboard-card card-info">
+                <div class="card-icon">📊</div>
+                <div class="card-content">
+                    <h6>Quantidade Total (Unidades)</h6>
+                    <h3>@quantidadeFiltrada.ToString("F2")</h3>
+                    <small class="text-info">@produtosFiltrados.Count produtos</small>
+                </div>
+            </div>
+
+            <div class="dashboard-card card-warning">
+                <div class="card-icon">📥</div>
+                <div class="card-content">
+                    <h6>Estoques Ativos</h6>
+                    <h3>@estoquesAtivos</h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Atalhos Rápidos -->
+        <div class="quick-shortcuts mt-4 mb-4">
+            <h5 class="mb-3">Atalhos Rápidos</h5>
+            <div class="shortcuts-grid">
+                <a href="/estoques" class="shortcut-btn">
+                    <span class="icon">📦</span>
+                    <span class="label">Gerenciar Estoques</span>
+                </a>
+                <a href="/produtos" class="shortcut-btn">
+                    <span class="icon">🏷️</span>
+                    <span class="label">Gerenciar Produtos</span>
+                </a>
+                <a href="/movimentacoes" class="shortcut-btn">
+                    <span class="icon">📊</span>
+                    <span class="label">Movimentações</span>
+                </a>
+                <a href="/saldo-estoque" class="shortcut-btn">
+                    <span class="icon">💾</span>
+                    <span class="label">Saldo de Estoque</span>
+                </a>
+                <a href="/relatorios" class="shortcut-btn">
+                    <span class="icon">📈</span>
+                    <span class="label">Relatórios</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Tabela Rápida de Saldo -->
+        @if (produtosFiltrados != null && produtosFiltrados.Count > 0)
+        {
+            <div class="card mt-4">
+                <div class="card-header bg-dark text-white d-flex justify-content-between">
+                    <h5 class="mb-0">⚡ Resumo Rápido de Saldo</h5>
+                    <small>@(string.IsNullOrEmpty(filtroEstoqueNome) ? "Todos os estoques" : filtroEstoqueNome)</small>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Produto</th>
+                                <th>Estoque</th>
+                                <th style="text-align: center;">Quantidade</th>
+                                <th style="text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var prod in produtosFiltrados.OrderBy(p => p.CodProd).Take(10))
+                            {
+                                <tr class="@(prod.Quantidade > 0 ? "table-success" : "table-warning")">
+                                    <td>
+                                        <span class="badge bg-info">@prod.CodProd</span>
+                                    </td>
+                                    <td>@prod.Descricao</td>
+                                    <td>@prod.EstoqueNome</td>
+                                    <td style="text-align: center;">
+                                        <strong>@prod.Quantidade.ToString("F2")</strong>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        @if (prod.Quantidade > 0)
+                                        {
+                                            <span class="badge bg-success">✅</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">❌</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (produtosFiltrados.Count > 10)
+                {
+                    <div class="card-footer bg-light">
+                        <small class="text-muted">Mostrando 10 de @produtosFiltrados.Count produtos. <a href="/saldo-estoque">Ver todos →</a></small>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool carregando = true;
+    private ICollection<Estoque>? estoques;
+    private ICollection<ProdutoBase>? produtos;
+    private List<SaldoProduto>? todosSaldos;
+    private List<SaldoProduto>? produtosFiltrados;
+    
+    private int totalEstoques = 0;
+    private int totalProdutos = 0;
+    private int totalProdutosAtivos = 0;
+    private int estoquesAtivos = 0;
+    private double quantidadeFiltrada = 0;
+    private string filtroEstoqueNome = "";
+    private int filtroEstoqueId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true;
+
+        estoques = await EstoqueService.GetEstoqueList();
+        produtos = await ProdutoBaseService.GetProdutoBaseList();
+        var produtosEst = await ProdEstService.GetProdutoEstList();
+
+        // Calcular totais
+        totalEstoques = estoques?.Count ?? 0;
+        totalProdutos = produtos?.Count ?? 0;
+        totalProdutosAtivos = produtos?.Count(p => p.Status) ?? 0;
+        estoquesAtivos = estoques?.Count(e => e.Status) ?? 0;
+
+        // Construir lista de saldos
+        todosSaldos = new List<SaldoProduto>();
+
+        foreach (var prodEst in produtosEst ?? new List<ProdutoEst>())
+        {
+            var estoque = estoques?.FirstOrDefault(e => e.Id == prodEst.EstoqueId);
+            var produto = produtos?.FirstOrDefault(p => p.Id == prodEst.ProdutoBaseId);
+
+            if (estoque != null && produto != null)
+            {
+                todosSaldos.Add(new SaldoProduto
+                {
+                    CodProd = prodEst.CodProd ?? "",
+                    Descricao = produto.Descricao ?? "",
+                    EstoqueNome = estoque.EstoqueDescricao ?? "",
+                    EstoqueId = estoque.Id,
+                    Quantidade = prodEst.QtdeEst
+                });
+            }
+        }
+
+        produtosFiltrados = todosSaldos;
+        quantidadeFiltrada = todosSaldos.Sum(s => s.Quantidade);
+        carregando = false;
+    }
+
+    private void FiltrarDashboard(ChangeEventArgs e)
+    {
+        var estoqueId = e.Value?.ToString();
+
+        if (string.IsNullOrEmpty(estoqueId))
+        {
+            produtosFiltrados = todosSaldos;
+            filtroEstoqueNome = "";
+            filtroEstoqueId = 0;
+        }
+        else if (int.TryParse(estoqueId, out int id))
+        {
+            var estoque = estoques?.FirstOrDefault(e => e.Id == id);
+            filtroEstoqueNome = estoque?.EstoqueDescricao ?? "";
+            filtroEstoqueId = id;
+            produtosFiltrados = todosSaldos?.Where(s => s.EstoqueId == id).ToList();
+        }
+
+        quantidadeFiltrada = produtosFiltrados?.Sum(s => s.Quantidade) ?? 0;
+    }
+
+    private class SaldoProduto
+    {
+        public string CodProd { get; set; } = "";
+        public string Descricao { get; set; } = "";
+        public string EstoqueNome { get; set; } = "";
+        public int EstoqueId { get; set; }
+        public double Quantidade { get; set; }
+    }
+}

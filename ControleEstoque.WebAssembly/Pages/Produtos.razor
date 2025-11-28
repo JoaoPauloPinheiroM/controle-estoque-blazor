@@ -1,0 +1,180 @@
+﻿@page "/produtos"
+@using ControleEstoque.WebAssembly.Interfaces
+@using ControleEstoque.WebAssembly.Model
+@inject IProdutoBase ProdutoBaseService
+
+<PageTitle>Gestão de Produtos</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="page-title">
+                    Gestão de Produtos
+                </h1>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary btn-lg" @onclick="AbrirModalNovo">
+                   Novo Produto
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (carregando)
+    {
+        <div class="spinner-box">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <p>Carregando produtos...</p>
+        </div>
+    }
+    else if (produtos == null || produtos.Count == 0)
+    {
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <h3>Nenhum produto cadastrado</h3>
+            <p>Clique no botão acima para criar seu primeiro produto</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Código</th>
+                        <th>Descrição</th>
+                        <th>Status</th>
+                        <th class="text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var produto in produtos)
+                    {
+                        <tr class="@(produto.Status ? "" : "table-secondary")">
+                            <td>
+                                <span class="badge bg-info">@produto.CodProd</span>
+                            </td>
+                            <td>@produto.Descricao</td>
+                            <td>
+                                <span class="badge @(produto.Status ? "bg-success" : "bg-danger")">
+                                    @(produto.Status ? "Ativo" : "Inativo")
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-warning" @onclick="() => EditarProduto(produto)">
+                                    Editar
+                                </button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => ToggleStatus(produto)">
+                                    @(produto.Status ? "INATIVAR" : "ATIVAR")
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<!-- Modal -->
+@if (mostrarModal)
+{
+    <div class="modal-overlay" @onclick="FechaModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h5 class="modal-title">@(produtoEmEdicao.Id == 0 ? "Novo Produto" : "Editar Produto")</h5>
+                <button type="button" class="btn-close" @onclick="FechaModal"></button>
+            </div>
+            <div class="modal-body">
+                <form @onsubmit="SalvarProduto">
+                    <div class="mb-3">
+                        <label class="form-label">Código do Produto</label>
+                        <input type="text" class="form-control" @bind="produtoEmEdicao.CodProd" placeholder="Ex: PROD-001" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descrição</label>
+                        <input type="text" class="form-control" @bind="produtoEmEdicao.Descricao" placeholder="Descrição do produto" required />
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" @bind="produtoEmEdicao.Status" id="statusSwitch" />
+                            <label class="form-check-label" for="statusSwitch">
+                                Produto Ativo
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="FechaModal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ICollection<ProdutoBase>? produtos;
+    private bool carregando = true;
+    private bool mostrarModal = false;
+    private ProdutoBase produtoEmEdicao = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarProdutos();
+    }
+
+    private async Task CarregarProdutos()
+    {
+        carregando = true;
+        produtos = await ProdutoBaseService.GetProdutoBaseList();
+        carregando = false;
+    }
+
+    private void AbrirModalNovo()
+    {
+        produtoEmEdicao = new ProdutoBase { Status = true };
+        mostrarModal = true;
+    }
+
+    private void EditarProduto(ProdutoBase produto)
+    {
+        produtoEmEdicao = new ProdutoBase
+        {
+            Id = produto.Id,
+            CodProd = produto.CodProd,
+            Descricao = produto.Descricao,
+            Status = produto.Status
+        };
+        mostrarModal = true;
+    }
+
+    private async Task SalvarProduto()
+    {
+        if (produtoEmEdicao.Id == 0)
+        {
+            await ProdutoBaseService.AddProdutoBase(produtoEmEdicao);
+        }
+        else
+        {
+            await ProdutoBaseService.UpdateProdutoBase(produtoEmEdicao);
+        }
+        FechaModal();
+        await CarregarProdutos();
+    }
+
+    private async Task ToggleStatus(ProdutoBase produto)
+    {
+        await ProdutoBaseService.UpdateStatusProdutoBase(produto.Id, !produto.Status);
+        await CarregarProdutos();
+    }
+
+    private void FechaModal()
+    {
+        mostrarModal = false;
+        produtoEmEdicao = new();
+    }
+}

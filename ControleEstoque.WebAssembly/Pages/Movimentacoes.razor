@@ -1,0 +1,228 @@
+@page "/movimentacoes"
+@using ControleEstoque.WebAssembly.Interfaces
+@using ControleEstoque.WebAssembly.Model
+@using ControleEstoque.WebAssembly.Model.Enum
+@inject IProdutoEst ProdEstService
+@inject IEstoque EstoqueService
+@inject IProdutoBase ProdutoBaseService
+
+<PageTitle>Movimentações de Estoque</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="page-title">
+                    Movimentações de Estoque
+                </h1>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-success btn-lg" @onclick="AbrirModalNovo">
+                     Nova Movimentação
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (carregando)
+    {
+        <div class="spinner-box">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <p>Carregando movimentações...</p>
+        </div>
+    }
+    else if (movimentacoes == null || movimentacoes.Count == 0)
+    {
+        <div class="empty-state">
+            
+            <h3>Nenhuma movimentação registrada</h3>
+            <p>Clique no botão acima para criar uma movimentação</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Data</th>
+                        <th>Tipo</th>
+                        <th>Quantidade</th>
+                        <th>Produto</th>
+                        <th>Observação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var mov in movimentacoes.OrderByDescending(m => m.DataMov))
+                    {
+                        <tr class="@(mov.TipoMovp == TipoMov.Entrada ? "table-success" : "table-danger")">
+                            <td>
+                                <small>@mov.DataMov.ToString("dd/MM/yyyy HH:mm")</small>
+                            </td>
+                            <td>
+                                <span class="badge @(mov.TipoMovp == TipoMov.Entrada ? "bg-success" : "bg-danger")">
+                                    @(mov.TipoMovp == TipoMov.Entrada ? "ENTRADA" : "SAÍDA")
+                                </span>
+                            </td>
+                            <td>
+                                <strong>@mov.Qtde.ToString("F2")</strong>
+                            </td>
+                            <td>@mov.ProdutoEstId</td>
+                            <td>@(string.IsNullOrEmpty(mov.Observacao) ? "-" : mov.Observacao)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<!-- Modal de Nova Movimentação -->
+@if (mostrarModal)
+{
+    <div class="modal-overlay" @onclick="FechaModal">
+        <div class="modal-content modal-lg" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h5 class="modal-title">Nova Movimentação</h5>
+                <button type="button" class="btn-close" @onclick="FechaModal"></button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(mensagemErro))
+                {
+                    <div class="alert alert-danger alert-dismissible fade show">
+                        @mensagemErro
+                        <button type="button" class="btn-close" @onclick="@(() => mensagemErro = "")"></button>
+                    </div>
+                }
+
+                <form @onsubmit="SalvarMovimentacao">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Estoque</label>
+                            <select class="form-select" @bind="novaMovimentacao.CodEst" required>
+                                <option value="">-- Selecione um estoque --</option>
+                                @foreach (var est in estoques)
+                                {
+                                    <option value="@est.CodEstoque">@est.EstoqueDescricao (@est.CodEstoque)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Produto</label>
+                            <select class="form-select" @bind="novaMovimentacao.CodProd" required>
+                                <option value="">-- Selecione um produto --</option>
+                                @foreach (var prod in produtos)
+                                {
+                                    <option value="@prod.CodProd">@prod.Descricao (@prod.CodProd)</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tipo de Movimentação</label>
+                            <select class="form-select" @bind="novaMovimentacao.TipoMov" required>
+                                <option value="">-- Selecione --</option>
+                                <option value="1">Entrada</option>
+                                <option value="2"> Saída</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Quantidade</label>
+                            <input type="number" class="form-control" @bind="novaMovimentacao.Quantidade" placeholder="0.00" step="0.01" required />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Observação (opcional)</label>
+                        <textarea class="form-control" @bind="novaMovimentacao.Observacao" rows="3" placeholder="Digite uma observação..."></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="FechaModal">Cancelar</button>
+                        <button type="submit" class="btn btn-success">Registrar Movimentação</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ICollection<EstMvp>? movimentacoes;
+    private ICollection<Estoque>? estoques;
+    private ICollection<ProdutoBase>? produtos;
+    private bool carregando = true;
+    private bool mostrarModal = false;
+    private string mensagemErro = "";
+
+    private MovimentacaoForm novaMovimentacao = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        carregando = true;
+        movimentacoes = await ProdEstService.GetMovimentacoesList();
+        estoques = await EstoqueService.GetEstoqueList();
+        produtos = await ProdutoBaseService.GetProdutoBaseList();
+        carregando = false;
+    }
+
+    private void AbrirModalNovo()
+    {
+        novaMovimentacao = new();
+        mensagemErro = "";
+        mostrarModal = true;
+    }
+
+    private async Task SalvarMovimentacao()
+    {
+        try
+        {
+            mensagemErro = "";
+            
+            if (novaMovimentacao.Quantidade <= 0)
+            {
+                mensagemErro = "A quantidade deve ser maior que zero";
+                return;
+            }
+
+            var tipoMov = novaMovimentacao.TipoMov == "1" ? TipoMov.Entrada : TipoMov.Saida;
+
+            await ProdEstService.MovimentarEst(
+                novaMovimentacao.CodProd,
+                novaMovimentacao.CodEst,
+                tipoMov,
+                novaMovimentacao.Quantidade,
+                novaMovimentacao.Observacao ?? ""
+            );
+
+            FechaModal();
+            await CarregarDados();
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = ex.Message;
+        }
+    }
+
+    private void FechaModal()
+    {
+        mostrarModal = false;
+        novaMovimentacao = new();
+        mensagemErro = "";
+    }
+
+    private class MovimentacaoForm
+    {
+        public string CodEst { get; set; } = "";
+        public string CodProd { get; set; } = "";
+        public string TipoMov { get; set; } = "";
+        public double Quantidade { get; set; }
+        public string? Observacao { get; set; }
+    }
+}

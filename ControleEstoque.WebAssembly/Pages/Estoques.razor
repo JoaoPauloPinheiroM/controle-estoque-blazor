@@ -1,0 +1,175 @@
+﻿@page "/estoques"
+@using ControleEstoque.WebAssembly.Interfaces
+@using ControleEstoque.WebAssembly.Model
+@inject IEstoque EstoqueService
+
+<PageTitle>Gestão de Estoques</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="page-title">
+                     Gestão de Estoques
+                </h1>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary btn-lg" @onclick="AbrirModalNovo">
+                    Novo Estoque
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (carregando)
+    {
+        <div class="spinner-box">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <p>Carregando estoques...</p>
+        </div>
+    }
+    else if (estoques == null || estoques.Count == 0)
+    {
+        <div class="empty-state">
+            
+            <h3>Nenhum estoque cadastrado</h3>
+            <p>Clique no botão acima para criar seu primeiro estoque</p>
+        </div>
+    }
+    else
+    {
+        <div class="estoques-grid">
+            @foreach (var estoque in estoques)
+            {
+                <div class="estoque-card">
+                    <div class="card-header">
+                        <h5 class="card-title">@estoque.EstoqueDescricao</h5>
+                        <span class="badge @(estoque.Status ? "bg-success" : "bg-danger")">
+                            @(estoque.Status ? "Ativo" : "Inativo")
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-row">
+                            <span class="label">Código:</span>
+                            <span class="value">@estoque.CodEstoque</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">ID:</span>
+                            <span class="value">@estoque.Id</span>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <button class="btn btn-sm btn-warning" @onclick="() => EditarEstoque(estoque)">
+                            Editar
+                        </button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => ToggleStatus(estoque)">
+                            @(estoque.Status ? "Desativar" : "Ativar")
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- Modal de Novo/Edição -->
+@if (mostrarModal)
+{
+    <div class="modal-overlay" @onclick="FechaModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h5 class="modal-title">@(estoqueEmEdicao.Id == 0 ? "Novo Estoque" : "Editar Estoque")</h5>
+                <button type="button" class="btn-close" @onclick="FechaModal"></button>
+            </div>
+            <div class="modal-body">
+                <form @onsubmit="SalvarEstoque">
+                    <div class="mb-3">
+                        <label class="form-label">Código do Estoque</label>
+                        <input type="text" class="form-control" @bind="estoqueEmEdicao.CodEstoque" placeholder="Ex: EST-001" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descrição</label>
+                        <input type="text" class="form-control" @bind="estoqueEmEdicao.EstoqueDescricao" placeholder="Descrição do estoque" required />
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" @bind="estoqueEmEdicao.Status" id="statusSwitch" />
+                            <label class="form-check-label" for="statusSwitch">
+                                Estoque Ativo
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="FechaModal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ICollection<Estoque>? estoques;
+    private bool carregando = true;
+    private bool mostrarModal = false;
+    private Estoque estoqueEmEdicao = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarEstoques();
+    }
+
+    private async Task CarregarEstoques()
+    {
+        carregando = true;
+        estoques = await EstoqueService.GetEstoqueList();
+        carregando = false;
+    }
+
+    private void AbrirModalNovo()
+    {
+        estoqueEmEdicao = new Estoque { Status = true };
+        mostrarModal = true;
+    }
+
+    private void EditarEstoque(Estoque estoque)
+    {
+        estoqueEmEdicao = new Estoque
+        {
+            Id = estoque.Id,
+            CodEstoque = estoque.CodEstoque,
+            EstoqueDescricao = estoque.EstoqueDescricao,
+            Status = estoque.Status
+        };
+        mostrarModal = true;
+    }
+
+    private async Task SalvarEstoque()
+    {
+        if (estoqueEmEdicao.Id == 0)
+        {
+            await EstoqueService.AddEstoque(estoqueEmEdicao);
+        }
+        else
+        {
+            await EstoqueService.UpdateStatusEstoque(estoqueEmEdicao.Id, estoqueEmEdicao.Status);
+        }
+        FechaModal();
+        await CarregarEstoques();
+    }
+
+    private async Task ToggleStatus(Estoque estoque)
+    {
+        await EstoqueService.UpdateStatusEstoque(estoque.Id, !estoque.Status);
+        await CarregarEstoques();
+    }
+
+    private void FechaModal()
+    {
+        mostrarModal = false;
+        estoqueEmEdicao = new();
+    }
+}
